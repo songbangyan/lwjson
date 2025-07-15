@@ -64,19 +64,19 @@ prv_alloc_token(lwjson_t* lwobj) {
  */
 static lwjsonr_t
 prv_skip_blank(lwjson_int_str_t* pobj) {
-    while (pobj->p != NULL && *pobj->p != '\0' && (size_t)(pobj->p - pobj->start) < pobj->len) {
+    while (pobj->p != NULL && (size_t)(pobj->p - pobj->start) < pobj->len && *pobj->p != '\0') {
         if (*pobj->p == ' ' || *pobj->p == '\t' || *pobj->p == '\r' || *pobj->p == '\n' || *pobj->p == '\f') {
             ++pobj->p;
 #if LWJSON_CFG_COMMENTS
             /* Check for comments and remove them */
         } else if (*pobj->p == '/') {
             ++pobj->p;
-            if (pobj->p != NULL && *pobj->p == '*') {
+            if (pobj->p != NULL && (size_t)(pobj->p - pobj->start) < pobj->len && *pobj->p == '*') {
                 ++pobj->p;
-                while (pobj->p != NULL && *pobj->p != '\0' && (size_t)(pobj->p - pobj->start) < pobj->len) {
+                while (pobj->p != NULL && (size_t)(pobj->p - pobj->start) < pobj->len && *pobj->p != '\0') {
                     if (*pobj->p == '*') {
                         ++pobj->p;
-                        if (*pobj->p == '/') {
+                        if ((size_t)(pobj->p - pobj->start) < pobj->len && *pobj->p == '/') {
                             ++pobj->p;
                             break;
                         }
@@ -89,7 +89,7 @@ prv_skip_blank(lwjson_int_str_t* pobj) {
             break;
         }
     }
-    if (pobj->p != NULL && *pobj->p != '\0' && (size_t)(pobj->p - pobj->start) < pobj->len) {
+    if (pobj->p != NULL && (size_t)(pobj->p - pobj->start) < pobj->len && *pobj->p != '\0') {
         return lwjsonOK;
     }
     return lwjsonERRJSON;
@@ -112,19 +112,24 @@ prv_parse_string(lwjson_int_str_t* pobj, const char** pout, size_t* poutlen) {
     if (res != lwjsonOK) {
         return res;
     }
-    if (*pobj->p++ != '"') {
+    if ((size_t)(pobj->p - pobj->start) < pobj->len && *pobj->p++ != '"') {
         return lwjsonERRJSON;
     }
     *pout = pobj->p;
     /* Parse string but take care of escape characters */
     for (;; ++pobj->p, ++len) {
-        if (pobj->p == NULL || *pobj->p == '\0' || (size_t)(pobj->p - pobj->start) >= pobj->len) {
+        if (pobj->p == NULL || (size_t)(pobj->p - pobj->start) >= pobj->len || *pobj->p == '\0') {
             return lwjsonERRJSON;
         }
         /* Check special characters */
         if (*pobj->p == '\\') {
             ++pobj->p;
             ++len;
+
+            if ((size_t)(pobj->p - pobj->start) >= pobj->len) {
+                return lwjsonERRJSON;
+            }
+
             switch (*pobj->p) {
                 case '"':  /* fallthrough */
                 case '\\': /* fallthrough */
@@ -137,8 +142,8 @@ prv_parse_string(lwjson_int_str_t* pobj, const char** pout, size_t* poutlen) {
                 case 'u':
                     ++pobj->p;
                     for (size_t i = 0; i < 4; ++i, ++len) {
-                        if (!((*pobj->p >= '0' && *pobj->p <= '9') || (*pobj->p >= 'a' && *pobj->p <= 'f')
-                              || (*pobj->p >= 'A' && *pobj->p <= 'F'))) {
+                        if (!(((size_t)(pobj->p - pobj->start) < pobj->len) && ((*pobj->p >= '0' && *pobj->p <= '9') || (*pobj->p >= 'a' && *pobj->p <= 'f')
+                              || (*pobj->p >= 'A' && *pobj->p <= 'F')))) {
                             return lwjsonERRJSON;
                         }
                         if (i < 3) {
@@ -179,7 +184,7 @@ prv_parse_property_name(lwjson_int_str_t* pobj, lwjson_token_t* t) {
         return res;
     }
     /* Must continue with colon */
-    if (*pobj->p++ != ':') {
+    if ((size_t)(pobj->p - pobj->start) >= pobj->len || *pobj->p++ != ':') {
         return lwjsonERRJSON;
     }
     /* Skip any spaces */
@@ -230,25 +235,27 @@ prv_parse_number(lwjson_int_str_t* pobj, lwjson_type_t* tout, lwjson_real_t* fou
     if (res != lwjsonOK) {
         return res;
     }
-    if (*pobj->p == '\0' || (size_t)(pobj->p - pobj->start) >= pobj->len) {
+    if ((size_t)(pobj->p - pobj->start) >= pobj->len || *pobj->p == '\0') {
         return lwjsonERRJSON;
     }
     is_minus = *pobj->p == '-' ? (++pobj->p, 1) : 0;
-    if (*pobj->p == '\0'                    /* Invalid string */
-        || *pobj->p < '0' || *pobj->p > '9' /* Character outside number range */
+    if ((size_t)(pobj->p - pobj->start) >= pobj->len          /* End of json input */
+        || *pobj->p == '\0'                                   /* Invalid string */
+        || *pobj->p < '0' || *pobj->p > '9'                   /* Character outside number range */
         || (*pobj->p == '0'
-            && (pobj->p[1] < '0' && pobj->p[1] > '9'))) { /* Number starts with 0 but not followed by dot */
+            && (size_t)(pobj->p + 1 - pobj->start) < pobj->len
+            && (pobj->p[1] >= '0' && pobj->p[1] <= '9'))) {   /* Number starts with 0 but not followed by dot */
         return lwjsonERRJSON;
     }
 
     /* Parse number */
-    for (int_num = 0; *pobj->p >= '0' && *pobj->p <= '9'; ++pobj->p) {
+    for (int_num = 0; (size_t)(pobj->p - pobj->start) < pobj->len && *pobj->p >= '0' && *pobj->p <= '9'; ++pobj->p) {
         int_num = int_num * (lwjson_int_t)10 + (*pobj->p - '0');
     }
 
     real_num = (lwjson_real_t)int_num;
 
-    if (pobj->p != NULL && *pobj->p == '.') { /* Number has exponent */
+    if (pobj->p != NULL && (size_t)(pobj->p - pobj->start) < pobj->len && *pobj->p == '.') { /* Number has exponent */
         lwjson_real_t exp;
         lwjson_int_t dec_num;
 
@@ -256,12 +263,12 @@ prv_parse_number(lwjson_int_str_t* pobj, lwjson_type_t* tout, lwjson_real_t* fou
 
         type = LWJSON_TYPE_NUM_REAL;            /* Format is real */
         ++pobj->p;                              /* Ignore comma character */
-        if (*pobj->p < '0' || *pobj->p > '9') { /* Must be followed by number characters */
+        if ((size_t)(pobj->p - pobj->start) >= pobj->len || *pobj->p < '0' || *pobj->p > '9') { /* Must be followed by number characters */
             return lwjsonERRJSON;
         }
 
         /* Get number after decimal point */
-        for (exp = (lwjson_real_t)1, dec_num = 0; *pobj->p >= '0' && *pobj->p <= '9';
+        for (exp = (lwjson_real_t)1, dec_num = 0; (size_t)(pobj->p - pobj->start) < pobj->len && *pobj->p >= '0' && *pobj->p <= '9';
              ++pobj->p, exp *= (lwjson_real_t)10) {
             dec_num = dec_num * (lwjson_int_t)10 + (lwjson_int_t)(*pobj->p - '0');
         }
@@ -269,22 +276,25 @@ prv_parse_number(lwjson_int_str_t* pobj, lwjson_type_t* tout, lwjson_real_t* fou
         /* Add decimal part to number */
         real_num += (lwjson_real_t)dec_num / exp;
     }
-    if (pobj->p != NULL && (*pobj->p == 'e' || *pobj->p == 'E')) { /* Engineering mode */
+    if (pobj->p != NULL && (size_t)(pobj->p - pobj->start) < pobj->len && (*pobj->p == 'e' || *pobj->p == 'E')) { /* Engineering mode */
         uint8_t is_minus_exp;
         lwjson_int_t exp_cnt;
 
         type = LWJSON_TYPE_NUM_REAL;                         /* Format is real */
         ++pobj->p;                                           /* Ignore enginnering sing part */
-        is_minus_exp = *pobj->p == '-' ? (++pobj->p, 1) : 0; /* Check if negative */
-        if (*pobj->p == '+') {                               /* Optional '+' is possible too */
+        if ((size_t)(pobj->p - pobj->start) >= pobj->len) {
+            return lwjsonERRJSON;
+        }
+        is_minus_exp = *pobj->p == '-' ? (++pobj->p, 1) : 0;                    /* Check if negative */
+        if ((size_t)(pobj->p - pobj->start) < pobj->len && *pobj->p == '+') {   /* Optional '+' is possible too */
             ++pobj->p;
         }
-        if (*pobj->p < '0' || *pobj->p > '9') { /* Must be followed by number characters */
+        if ((size_t)(pobj->p - pobj->start) >= pobj->len || *pobj->p < '0' || *pobj->p > '9') { /* Must be followed by number characters */
             return lwjsonERRJSON;
         }
 
         /* Parse exponent number */
-        for (exp_cnt = 0; *pobj->p >= '0' && *pobj->p <= '9'; ++pobj->p) {
+        for (exp_cnt = 0; (size_t)(pobj->p - pobj->start) < pobj->len && *pobj->p >= '0' && *pobj->p <= '9'; ++pobj->p) {
             exp_cnt = exp_cnt * (lwjson_int_t)10 + (lwjson_int_t)(*pobj->p - '0');
         }
 
@@ -448,7 +458,8 @@ prv_check_valid_char_after_open_bracket(lwjson_int_str_t* pobj, lwjson_token_t* 
     if (res != lwjsonOK) {
         return res;
     }
-    if (*pobj->p == '\0' || (t->type == LWJSON_TYPE_OBJECT && (*pobj->p != '"' && *pobj->p != '}'))
+    if ((size_t)(pobj->p - pobj->start) >= pobj->len
+        || *pobj->p == '\0' || (t->type == LWJSON_TYPE_OBJECT && (*pobj->p != '"' && *pobj->p != '}'))
         || (t->type == LWJSON_TYPE_ARRAY
             && (*pobj->p != '"' && *pobj->p != ']' && *pobj->p != '[' && *pobj->p != '{' && *pobj->p != '-'
                 && (*pobj->p < '0' || *pobj->p > '9') && *pobj->p != 't' && *pobj->p != 'n' && *pobj->p != 'f'))) {
@@ -507,6 +518,10 @@ lwjson_parse_ex(lwjson_t* lwobj, const void* json_data, size_t json_len) {
     if (res != lwjsonOK) {
         goto ret;
     }
+    if ((size_t)(pobj.p - pobj.start) >= pobj.len) {
+        res = lwjsonERRJSON;
+        goto ret;
+    }
     if (*pobj.p == '{') {
         to->type = LWJSON_TYPE_OBJECT;
     } else if (*pobj.p == '[') {
@@ -522,7 +537,7 @@ lwjson_parse_ex(lwjson_t* lwobj, const void* json_data, size_t json_len) {
     }
 
     /* Process all characters as indicated by input user */
-    while (pobj.p != NULL && *pobj.p != '\0' && (size_t)(pobj.p - pobj.start) < pobj.len) {
+    while (pobj.p != NULL && (size_t)(pobj.p - pobj.start) < pobj.len && *pobj.p != '\0') {
         /* Filter out blanks */
         res = prv_skip_blank(&pobj);
         if (res != lwjsonOK) {
@@ -543,7 +558,7 @@ lwjson_parse_ex(lwjson_t* lwobj, const void* json_data, size_t json_len) {
             to = parent;
             if (to == NULL) {
                 prv_skip_blank(&pobj);
-                res = (pobj.p == NULL || *pobj.p == '\0' || (size_t)(pobj.p - pobj.start) == pobj.len) ? lwjsonOK
+                res = (pobj.p == NULL || (size_t)(pobj.p - pobj.start) >= pobj.len || *pobj.p == '\0') ? lwjsonOK
                                                                                                        : lwjsonERR;
                 goto ret;
             }
@@ -602,7 +617,7 @@ lwjson_parse_ex(lwjson_t* lwobj, const void* json_data, size_t json_len) {
                 break;
             case 't':
                 /* RFC4627 is lower-case only */
-                if (strncmp(pobj.p, "true", 4) == 0) {
+                if ((size_t)(pobj.p + 3 - pobj.start) < pobj.len && strncmp(pobj.p, "true", 4) == 0) {
                     t->type = LWJSON_TYPE_TRUE;
                     pobj.p += 4;
                 } else {
@@ -612,7 +627,7 @@ lwjson_parse_ex(lwjson_t* lwobj, const void* json_data, size_t json_len) {
                 break;
             case 'f':
                 /* RFC4627 is lower-case only */
-                if (strncmp(pobj.p, "false", 5) == 0) {
+                if ((size_t)(pobj.p + 4 - pobj.start) < pobj.len && strncmp(pobj.p, "false", 5) == 0) {
                     t->type = LWJSON_TYPE_FALSE;
                     pobj.p += 5;
                 } else {
@@ -622,7 +637,7 @@ lwjson_parse_ex(lwjson_t* lwobj, const void* json_data, size_t json_len) {
                 break;
             case 'n':
                 /* RFC4627 is lower-case only */
-                if (strncmp(pobj.p, "null", 4) == 0) {
+                if ((size_t)(pobj.p + 3 - pobj.start) < pobj.len && strncmp(pobj.p, "null", 4) == 0) {
                     t->type = LWJSON_TYPE_NULL;
                     pobj.p += 4;
                 } else {
@@ -662,10 +677,10 @@ lwjson_parse_ex(lwjson_t* lwobj, const void* json_data, size_t json_len) {
             goto ret;
         }
         /* Check if valid string is availabe after */
-        if (pobj.p == NULL || *pobj.p == '\0' || (*pobj.p != ',' && *pobj.p != ']' && *pobj.p != '}')) {
+        if (pobj.p == NULL || (size_t)(pobj.p - pobj.start) >= pobj.len || *pobj.p == '\0' || (*pobj.p != ',' && *pobj.p != ']' && *pobj.p != '}')) {
             res = lwjsonERRJSON;
             goto ret;
-        } else if (*pobj.p == ',') { /* Check to advance to next token immediatey */
+        } else if (*pobj.p == ',') { /* Check to advance to next token immediately */
             ++pobj.p;
         }
     }
