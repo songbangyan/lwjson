@@ -2,8 +2,11 @@
 
 ## Develop
 
+## 1.8.0
+
 - Rework library CMake with removed INTERFACE type
 - Improve the calculation with square-multiply algorithm (@SKlimaRA)
+- Improve the input boundary checks (@DKubasekRA)
 
 ## 1.7.0
 

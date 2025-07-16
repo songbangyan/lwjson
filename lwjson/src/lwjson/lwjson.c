@@ -29,7 +29,7 @@
  * This file is part of LwJSON - Lightweight JSON format parser.
  *
  * Author:          Tilen MAJERLE <tilen@majerle.eu>
- * Version:         v1.7.0
+ * Version:         v1.8.0
  */
 #include <string.h>
 #include "lwjson/lwjson.h"
@@ -142,8 +142,9 @@ prv_parse_string(lwjson_int_str_t* pobj, const char** pout, size_t* poutlen) {
                 case 'u':
                     ++pobj->p;
                     for (size_t i = 0; i < 4; ++i, ++len) {
-                        if (!(((size_t)(pobj->p - pobj->start) < pobj->len) && ((*pobj->p >= '0' && *pobj->p <= '9') || (*pobj->p >= 'a' && *pobj->p <= 'f')
-                              || (*pobj->p >= 'A' && *pobj->p <= 'F')))) {
+                        if (!(((size_t)(pobj->p - pobj->start) < pobj->len)
+                              && ((*pobj->p >= '0' && *pobj->p <= '9') || (*pobj->p >= 'a' && *pobj->p <= 'f')
+                                  || (*pobj->p >= 'A' && *pobj->p <= 'F')))) {
                             return lwjsonERRJSON;
                         }
                         if (i < 3) {
@@ -201,12 +202,12 @@ prv_parse_property_name(lwjson_int_str_t* pobj, lwjson_token_t* t) {
  * \param[in]       is_minus: Indicates whether the exponent is negative.
  * \return          Value of 10^exponent.
  */
-static lwjson_real_t prv_power10(lwjson_int_t exp, uint8_t is_minus)
-{
+static lwjson_real_t
+prv_power10(lwjson_int_t exp, uint8_t is_minus) {
     lwjson_real_t result = (lwjson_real_t)1;
     lwjson_real_t base = (lwjson_real_t)10;
 
-    for (;exp > 0; base *= base, exp >>= 1) {
+    for (; exp > 0; base *= base, exp >>= 1) {
         if ((exp & 1) == 1) {
             result *= base;
         }
@@ -239,12 +240,11 @@ prv_parse_number(lwjson_int_str_t* pobj, lwjson_type_t* tout, lwjson_real_t* fou
         return lwjsonERRJSON;
     }
     is_minus = *pobj->p == '-' ? (++pobj->p, 1) : 0;
-    if ((size_t)(pobj->p - pobj->start) >= pobj->len          /* End of json input */
-        || *pobj->p == '\0'                                   /* Invalid string */
-        || *pobj->p < '0' || *pobj->p > '9'                   /* Character outside number range */
-        || (*pobj->p == '0'
-            && (size_t)(pobj->p + 1 - pobj->start) < pobj->len
-            && (pobj->p[1] >= '0' && pobj->p[1] <= '9'))) {   /* Number starts with 0 but not followed by dot */
+    if ((size_t)(pobj->p - pobj->start) >= pobj->len /* End of json input */
+        || *pobj->p == '\0'                          /* Invalid string */
+        || *pobj->p < '0' || *pobj->p > '9'          /* Character outside number range */
+        || (*pobj->p == '0' && (size_t)(pobj->p + 1 - pobj->start) < pobj->len
+            && (pobj->p[1] >= '0' && pobj->p[1] <= '9'))) { /* Number starts with 0 but not followed by dot */
         return lwjsonERRJSON;
     }
 
@@ -261,14 +261,16 @@ prv_parse_number(lwjson_int_str_t* pobj, lwjson_type_t* tout, lwjson_real_t* fou
 
         real_num = (lwjson_real_t)int_num;
 
-        type = LWJSON_TYPE_NUM_REAL;            /* Format is real */
-        ++pobj->p;                              /* Ignore comma character */
-        if ((size_t)(pobj->p - pobj->start) >= pobj->len || *pobj->p < '0' || *pobj->p > '9') { /* Must be followed by number characters */
+        type = LWJSON_TYPE_NUM_REAL; /* Format is real */
+        ++pobj->p;                   /* Ignore comma character */
+        if ((size_t)(pobj->p - pobj->start) >= pobj->len || *pobj->p < '0'
+            || *pobj->p > '9') { /* Must be followed by number characters */
             return lwjsonERRJSON;
         }
 
         /* Get number after decimal point */
-        for (exp = (lwjson_real_t)1, dec_num = 0; (size_t)(pobj->p - pobj->start) < pobj->len && *pobj->p >= '0' && *pobj->p <= '9';
+        for (exp = (lwjson_real_t)1, dec_num = 0;
+             (size_t)(pobj->p - pobj->start) < pobj->len && *pobj->p >= '0' && *pobj->p <= '9';
              ++pobj->p, exp *= (lwjson_real_t)10) {
             dec_num = dec_num * (lwjson_int_t)10 + (lwjson_int_t)(*pobj->p - '0');
         }
@@ -276,25 +278,28 @@ prv_parse_number(lwjson_int_str_t* pobj, lwjson_type_t* tout, lwjson_real_t* fou
         /* Add decimal part to number */
         real_num += (lwjson_real_t)dec_num / exp;
     }
-    if (pobj->p != NULL && (size_t)(pobj->p - pobj->start) < pobj->len && (*pobj->p == 'e' || *pobj->p == 'E')) { /* Engineering mode */
+    if (pobj->p != NULL && (size_t)(pobj->p - pobj->start) < pobj->len
+        && (*pobj->p == 'e' || *pobj->p == 'E')) { /* Engineering mode */
         uint8_t is_minus_exp;
         lwjson_int_t exp_cnt;
 
-        type = LWJSON_TYPE_NUM_REAL;                         /* Format is real */
-        ++pobj->p;                                           /* Ignore enginnering sing part */
+        type = LWJSON_TYPE_NUM_REAL; /* Format is real */
+        ++pobj->p;                   /* Ignore enginnering sing part */
         if ((size_t)(pobj->p - pobj->start) >= pobj->len) {
             return lwjsonERRJSON;
         }
-        is_minus_exp = *pobj->p == '-' ? (++pobj->p, 1) : 0;                    /* Check if negative */
-        if ((size_t)(pobj->p - pobj->start) < pobj->len && *pobj->p == '+') {   /* Optional '+' is possible too */
+        is_minus_exp = *pobj->p == '-' ? (++pobj->p, 1) : 0;                  /* Check if negative */
+        if ((size_t)(pobj->p - pobj->start) < pobj->len && *pobj->p == '+') { /* Optional '+' is possible too */
             ++pobj->p;
         }
-        if ((size_t)(pobj->p - pobj->start) >= pobj->len || *pobj->p < '0' || *pobj->p > '9') { /* Must be followed by number characters */
+        if ((size_t)(pobj->p - pobj->start) >= pobj->len || *pobj->p < '0'
+            || *pobj->p > '9') { /* Must be followed by number characters */
             return lwjsonERRJSON;
         }
 
         /* Parse exponent number */
-        for (exp_cnt = 0; (size_t)(pobj->p - pobj->start) < pobj->len && *pobj->p >= '0' && *pobj->p <= '9'; ++pobj->p) {
+        for (exp_cnt = 0; (size_t)(pobj->p - pobj->start) < pobj->len && *pobj->p >= '0' && *pobj->p <= '9';
+             ++pobj->p) {
             exp_cnt = exp_cnt * (lwjson_int_t)10 + (lwjson_int_t)(*pobj->p - '0');
         }
 
@@ -458,8 +463,8 @@ prv_check_valid_char_after_open_bracket(lwjson_int_str_t* pobj, lwjson_token_t* 
     if (res != lwjsonOK) {
         return res;
     }
-    if ((size_t)(pobj->p - pobj->start) >= pobj->len
-        || *pobj->p == '\0' || (t->type == LWJSON_TYPE_OBJECT && (*pobj->p != '"' && *pobj->p != '}'))
+    if ((size_t)(pobj->p - pobj->start) >= pobj->len || *pobj->p == '\0'
+        || (t->type == LWJSON_TYPE_OBJECT && (*pobj->p != '"' && *pobj->p != '}'))
         || (t->type == LWJSON_TYPE_ARRAY
             && (*pobj->p != '"' && *pobj->p != ']' && *pobj->p != '[' && *pobj->p != '{' && *pobj->p != '-'
                 && (*pobj->p < '0' || *pobj->p > '9') && *pobj->p != 't' && *pobj->p != 'n' && *pobj->p != 'f'))) {
@@ -677,7 +682,8 @@ lwjson_parse_ex(lwjson_t* lwobj, const void* json_data, size_t json_len) {
             goto ret;
         }
         /* Check if valid string is availabe after */
-        if (pobj.p == NULL || (size_t)(pobj.p - pobj.start) >= pobj.len || *pobj.p == '\0' || (*pobj.p != ',' && *pobj.p != ']' && *pobj.p != '}')) {
+        if (pobj.p == NULL || (size_t)(pobj.p - pobj.start) >= pobj.len || *pobj.p == '\0'
+            || (*pobj.p != ',' && *pobj.p != ']' && *pobj.p != '}')) {
             res = lwjsonERRJSON;
             goto ret;
         } else if (*pobj.p == ',') { /* Check to advance to next token immediately */
