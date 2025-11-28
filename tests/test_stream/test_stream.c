@@ -123,9 +123,9 @@ prv_parser_callback(struct lwjson_stream_parser* jsp, lwjson_stream_type_t type)
         if (parsed_data.event_counter < num_expected_events) {
             event_data_t expected_event = expected_events[parsed_data.event_counter];
             if (type != expected_event.type || jsp->stack_pos != expected_event.stack_pos) {
-                printf("ERROR for event #%lu: Expected %s with stack_pos %lu, got %s with stack_pos %lu\n",
-                       parsed_data.event_counter + 1, lwjson_type_strings[expected_event.type],
-                       expected_event.stack_pos, lwjson_type_strings[type], jsp->stack_pos);
+                printf("ERROR for event #%u: Expected %s with stack_pos %u, got %s with stack_pos %u\n",
+                       (unsigned)(parsed_data.event_counter + 1), lwjson_type_strings[expected_event.type],
+                       (unsigned)expected_event.stack_pos, lwjson_type_strings[type], (unsigned)jsp->stack_pos);
                 parsed_data.event_error = true;
             }
         } else {
