@@ -156,7 +156,7 @@ serialize_test_data(char* json_str, size_t max_len) {
     }
 
     /* Serialize number_real */
-    res = lwjson_serializer_add_float(&serializer, "number_real", 12, test_data.number_real);
+    res = lwjson_serializer_add_float(&serializer, "number_real", 11, test_data.number_real);
     if (res != lwjsonOK) {
         printf("Failed to add number_real: %d\r\n", res);
         return -1;
