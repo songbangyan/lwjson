@@ -33,6 +33,7 @@
  */
 #include <string.h>
 #include "lwjson/lwjson.h"
+#include "lwjson/lwjson_utils.h"
 
 #if defined(LWJSON_DEV)
 #include <stdio.h>
@@ -411,7 +412,7 @@ start_over:
                 jsp->data.str.buff_total_pos++;
 
                 /* Handle buffer "overflow" */
-                if (jsp->data.str.buff_pos >= (LWJSON_CFG_STREAM_STRING_MAX_LEN - 1)) {
+                if (jsp->data.str.buff_pos >= (sizeof(jsp->data.str.buff) - 1)) {
                     jsp->data.str.buff[jsp->data.str.buff_pos] = '\0';
 
                     /* 
