@@ -232,5 +232,28 @@ test_run(void) {
     RUN_TEST(parsed_data.event_counter == num_expected_events);
     RUN_TEST(!parsed_data.event_error);
 
+    /*
+     * Verify strings ending with escaped backslash parse correctly
+     * and do not cause the parser to miss the closing quote.
+     */
+    {
+        static const char* escaped_bs_tests[] = {
+            "{\"a\":\"\\\\\"}", /* {"a":"\\"} - string is single backslash */
+            "{\"a\":\"\\\\\\\\\"}", /* {"a":"\\\\"} - string is two backslashes */
+            "{\"a\":\"\\\\\\\"\"}", /* {"a":"\\\"} - escaped bs then escaped quote */
+            "{\"a\":\"hello\\\\\"}", /* {"a":"hello\\"} */
+            NULL,
+        };
+        for (const char** tc = escaped_bs_tests; *tc != NULL; ++tc) {
+            lwjson_stream_init(&parser, prv_parser_callback);
+            const char* p = *tc;
+            lwjsonr_t res = lwjsonSTREAMINPROG;
+            while (*p && res == lwjsonSTREAMINPROG) {
+                res = lwjson_stream_parse(&parser, *p++);
+            }
+            RUN_TEST(res == lwjsonSTREAMDONE);
+        }
+    }
+
     return test_failed > 0 ? -1 : 0;
 }

@@ -232,7 +232,7 @@ typedef struct lwjson_stream_parser {
         /* Todo: Add other types */
     } data; /*!< Data union used to parse various */
 
-    char prev_c; /*!< History of characters */
+    uint8_t is_escaped; /*!< Set to 1 when backslash escape is active in string parsing */
 } lwjson_stream_parser_t;
 
 lwjsonr_t lwjson_stream_init(lwjson_stream_parser_t* jsp, lwjson_stream_parser_callback_fn evt_fn);
